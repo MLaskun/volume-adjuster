@@ -6,43 +6,7 @@ their volume/gain so a playlist plays back at consistent loudness,
 macOS, primary target Windows. Volume is feature 1; more processing
 steps may follow later.
 
-## Feasibility: yes
-
-The classic `mp3gain` trick modifies the 8-bit `global_gain` field
-already present in every MP3 frame's side info. That field is
-applied during decode-time dequantization, so changing it shifts
-playback loudness in ~1.5 dB steps **without ever decoding/
-re-encoding the audio samples** — i.e. genuinely zero added
-distortion (unlike a decode → scale → re-encode pipeline, which
-always loses a generation of quality). This is a solved,
-well-understood technique, not an open question.
-
-## Key finding: don't reimplement it — `mp3rgain` already exists
-
-[`mp3rgain`](https://github.com/M-Igashi/mp3rgain) is an actively
-maintained Rust crate (MIT license, v2.9.6 published 2026-07-10,
-verified against the crates.io and GitHub APIs) that implements
-exactly this lossless bitstream-gain technique for MP3 (and extends
-it to AAC/M4A as a modern `aacgain` replacement — the originals have
-been unmaintained since 2009/2015). It ships as CLI, native GUI, and
-a **library crate**, and already exposes:
-
-- `collect_audio_files()` — directory scanning
-- `analyze()` / `find_max_amplitude()` — pre-adjustment measurement
-- `apply_gain_db()` / `apply_gain_to_peak()` /
-  `apply_gain_db_auto()` — the lossless gain application
-- `would_clip()` — predicts clipping before applying, so a bad
-  adjustment can be refused instead of distorting the file
-- `undo_gain()` — fully reversible, since original samples are
-  never touched
-- ReplayGain / ID3v2 / APEv2 tag helpers
-
-Recommendation: depend on `mp3rgain` as a library instead of
-hand-rolling MPEG frame parsing. Our code becomes "walk a directory
-→ decide target gain per file → call into mp3rgain → report," which
-keeps essentially all distortion risk out of our own code.
-
-## Recommended stack
+## Stack
 
 - **Lossless gain engine**: [`mp3rgain`]
 - **Directory traversal**: `mp3rgain::collect_audio_files()`
@@ -84,6 +48,6 @@ keeps essentially all distortion risk out of our own code.
   that ends up mattering
 - MSVC-ABI Windows builds are more friction to cross-compile from
   macOS than GNU-ABI; likely easiest to build MSVC target via CI
-  (GitHub Actions `windows-latest`) rather than fighting it locally
+(GitHub Actions `windows-latest`) rather than fighting it locally
   — not blocking early development, which can happen via plain
   `cargo build`/`cargo run` on macOS
